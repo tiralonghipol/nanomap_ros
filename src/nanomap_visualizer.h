@@ -4,6 +4,7 @@
 #include "nanomap_types.h"
 #include <ros/ros.h>
 #include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 
 class NanoMapVisualizer {
 public:
