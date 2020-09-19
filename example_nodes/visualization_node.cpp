@@ -16,11 +16,12 @@ Stopwatch global_time;
 
 geometry_msgs::Pose curr_pose;
 
-visualization_msgs::Marker getQueryPtMarker(int status, int id, Vector3 point_pos) {
+visualization_msgs::Marker getQueryPtMarker(int status, int id, Vector3 point_pos)
+{
   visualization_msgs::Marker marker1;
-  marker1.header.frame_id = "body";
+  marker1.header.frame_id = "delta/base_link";
   marker1.header.stamp = ros::Time();
-  marker1.ns = "p"+std::to_string(id);
+  marker1.ns = "p" + std::to_string(id);
   marker1.id = id;
   marker1.type = visualization_msgs::Marker::SPHERE;
   marker1.action = visualization_msgs::Marker::ADD;
@@ -34,7 +35,8 @@ visualization_msgs::Marker getQueryPtMarker(int status, int id, Vector3 point_po
   marker1.scale.x = 1.3;
   marker1.scale.y = 1.3;
   marker1.scale.z = 1.3;
-  if(status == 6) {
+  if (status == 6)
+  {
     marker1.color.a = 1.0; // Don't forget to set the alpha!
     marker1.color.r = 0.0;
     marker1.color.g = 1.0;
@@ -58,7 +60,8 @@ visualization_msgs::Marker getQueryPtMarker(int status, int id, Vector3 point_po
   //   marker1.color.g = 1.0;
   //   marker1.color.b = 0.0;
   // }
-  else {  // cyan
+  else
+  {                        // cyan
     marker1.color.a = 1.0; // Don't forget to set the alpha!
     marker1.color.r = 1.0;
     marker1.color.g = 0.0;
@@ -67,15 +70,16 @@ visualization_msgs::Marker getQueryPtMarker(int status, int id, Vector3 point_po
   return marker1;
 }
 
-class NanoMapNode {
-  public:
-  NanoMapNode() : nh("~"){
+class NanoMapNode
+{
+public:
+  NanoMapNode() : nh("~")
+  {
     nanomap_visualizer.Initialize(nh);
 
     ros::NodeHandle nh;
     NanoMapVisualizer nanomap_visualizer;
     nanomap_visualizer.Initialize(nh);
-    
 
     Matrix3 K;
     K << 205.27, 0.0, 160.0, 0.0, 205.27, 120.0, 0.0, 0.0, 1.0;
@@ -86,9 +90,9 @@ class NanoMapNode {
     body_to_rdf << 0, -1, 0, 0, 0, -1, 1, 0, 0;
     nanomap.SetBodyToRdf(body_to_rdf);
 
-    pcl_sub = nh.subscribe("/flight/r200/points_xyz", 100, &NanoMapNode::PointCloudCallback, this);
-    pose_updates_sub = nh.subscribe("/samros/keyposes", 100, &NanoMapNode::SmoothedPosesCallback, this);
-    pose_sub = nh.subscribe("/pose", 100, &NanoMapNode::PoseCallback, this);
+    pcl_sub = nh.subscribe("points", 100, &NanoMapNode::PointCloudCallback, this);
+    pose_updates_sub = nh.subscribe("path", 100, &NanoMapNode::SmoothedPosesCallback, this);
+    pose_sub = nh.subscribe("poseStamped", 100, &NanoMapNode::PoseCallback, this);
   };
 
   ros::NodeHandle nh;
@@ -101,19 +105,20 @@ class NanoMapNode {
 
   bool initialized = false;
 
-  void PointCloudCallback(const sensor_msgs::PointCloud2& msg) {
+  void PointCloudCallback(const sensor_msgs::PointCloud2 &msg)
+  {
     Stopwatch sw;
     sw.Start();
     pcl::PCLPointCloud2 cloud2_rdf;
     pcl_conversions::toPCL(msg, cloud2_rdf);
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_rdf(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::fromPCLPointCloud2(cloud2_rdf,*cloud_rdf);
+    pcl::fromPCLPointCloud2(cloud2_rdf, *cloud_rdf);
     NanoMapTime nm_time(msg.header.stamp.sec, msg.header.stamp.nsec);
     nanomap.AddPointCloud(cloud_rdf, nm_time, msg.header.seq);
 
     float insertion_time = sw.ElapsedMillis();
     // std::cout << "insertion_time: " << insertion_time << std::endl;
-   
+
     sw.Start();
 
     sw.Stop();
@@ -123,8 +128,8 @@ class NanoMapNode {
     sw.Start();
     int num_samples = 10;
     float rad = 15.0;
-    float delta = 2*rad/(num_samples-1)-.0001; // subtraction needed to get floating point happy in loop
-    
+    float delta = 2 * rad / (num_samples - 1) - .0001; // subtraction needed to get floating point happy in loop
+
     NanoMapKnnArgs args;
     args.axis_aligned_linear_covariance = Vector3(0.1, 0.1, 0.1);
     args.early_exit = false;
@@ -166,8 +171,10 @@ class NanoMapNode {
     //   }
     // }
     int n = 0;
-    for(float m=-1.57; m<=1.571;m+=0.5) {
-      for(float x = -rad; x <= rad; x =x+delta) {
+    for (float m = -1.57; m <= 1.571; m += 0.5)
+    {
+      for (float x = -rad; x <= rad; x = x + delta)
+      {
         n++;
         bool hit = false;
         // for(float dx = -0.5;dx<=0.5;dx+=0.1) {
@@ -199,26 +206,29 @@ class NanoMapNode {
         //   if(hit)
         //     break;
         // }
-        args.query_point_current_body_frame = Vector3(x, m*x, 0.0);
+        args.query_point_current_body_frame = Vector3(x, m * x, 0.0);
         reply = nanomap.KnnQuery(args);
-        // std::cout << "Query point: " 
+        // std::cout << "Query point: "
         //           << args.query_point_current_body_frame(0) << " " << args.query_point_current_body_frame(1) << " " << args.query_point_current_body_frame(2) << std::endl;
         // std::cout << "FOV status: " << (int)(reply.fov_status) << std::endl;
-        
-        for(Vector3 v:reply.closest_points_in_frame_id) {
+
+        for (Vector3 v : reply.closest_points_in_frame_id)
+        {
           // std::cout << v(0) << " " << v(1) << " " << v(2) << std::endl;
           double cld = (reply.query_point_in_frame_id - v).norm();
-          
-          if(cld <= 2.0) {
+
+          if (cld <= 2.0)
+          {
             // std::cout << "Closest distance: " << cld << std::endl;
             hit = true;
             break;
           }
         }
         int status;
-        if((int)(reply.fov_status) == 6) {
+        if ((int)(reply.fov_status) == 6)
+        {
           // status = 6;
-          if(!hit)
+          if (!hit)
             status = 6;
           else
             status = 5;
@@ -236,19 +246,20 @@ class NanoMapNode {
 
     args.query_point_current_body_frame = Vector3(15.0 - curr_pose.position.x, 0.0 - curr_pose.position.y, 0.0 - curr_pose.position.z);
     reply = nanomap.KnnQuery(args);
-    // std::cout << "Query point: " 
-              // << args.query_point_current_body_frame(0) << " " << args.query_point_current_body_frame(1) << " " << args.query_point_current_body_frame(2) << std::endl;
+    // std::cout << "Query point: "
+    // << args.query_point_current_body_frame(0) << " " << args.query_point_current_body_frame(1) << " " << args.query_point_current_body_frame(2) << std::endl;
     // std::cout << "FOV status: " << (int)(reply.fov_status) << std::endl;
-    for(Vector3 v:reply.closest_points_in_frame_id) {
+    for (Vector3 v : reply.closest_points_in_frame_id)
+    {
       // std::cout << v(0) << " " << v(1) << " " << v(2) << std::endl;
       // std::cout << "Closest distance: " << (args.query_point_current_body_frame - v).norm() << std::endl;
     }
     visualization_msgs::Marker mp1 = getQueryPtMarker((int)(reply.fov_status), 1, args.query_point_current_body_frame);
     query_points.markers.push_back(mp1);
-    
+
     // args.query_point_current_body_frame = Vector3(-15.0, 1.0, 1.0);
     // reply = nanomap.KnnQuery(args);
-    // std::cout << "Query point: " 
+    // std::cout << "Query point: "
     //           << args.query_point_current_body_frame(0) << " " << args.query_point_current_body_frame(1) << " " << args.query_point_current_body_frame(2) << std::endl;
     // std::cout << "FOV status: " << (int)(reply.fov_status) << std::endl;
     // for(Vector3 v:reply.closest_points_in_frame_id) {
@@ -260,7 +271,7 @@ class NanoMapNode {
 
     // args.query_point_current_body_frame = Vector3(0.0, 15.0, 1.0);
     // reply = nanomap.KnnQuery(args);
-    // std::cout << "Query point: " 
+    // std::cout << "Query point: "
     //           << args.query_point_current_body_frame(0) << " " << args.query_point_current_body_frame(1) << " " << args.query_point_current_body_frame(2) << std::endl;
     // std::cout << "FOV status: " << (int)(reply.fov_status) << std::endl;
     // for(Vector3 v:reply.closest_points_in_frame_id) {
@@ -272,7 +283,7 @@ class NanoMapNode {
 
     // args.query_point_current_body_frame = Vector3(0.0, -15.0, 1.0);
     // reply = nanomap.KnnQuery(args);
-    // std::cout << "Query point: " 
+    // std::cout << "Query point: "
     //           << args.query_point_current_body_frame(0) << " " << args.query_point_current_body_frame(1) << " " << args.query_point_current_body_frame(2) << std::endl;
     // std::cout << "FOV status: " << (int)(reply.fov_status) << std::endl;
     // for(Vector3 v:reply.closest_points_in_frame_id) {
@@ -281,7 +292,7 @@ class NanoMapNode {
     // }
     // visualization_msgs::Marker mp4 = getQueryPtMarker((int)(reply.fov_status), 4, args.query_point_current_body_frame);
     // query_points.markers.push_back(mp4);
-    
+
     query_points_pub.publish(query_points);
 
     // std::cout << "---" << std::endl;
@@ -290,12 +301,14 @@ class NanoMapNode {
     // std::cout << "sample_time: " << sample_time << std::endl;
   }
 
-  void DrawNanoMapVisualizer() {
+  void DrawNanoMapVisualizer()
+  {
     std::vector<Matrix4> edges = nanomap.GetCurrentEdges();
     nanomap_visualizer.DrawFrustums(edges);
   }
 
-  void PoseCallback(geometry_msgs::PoseStamped const& pose) {
+  void PoseCallback(geometry_msgs::PoseStamped const &pose)
+  {
     Eigen::Quaterniond quat(pose.pose.orientation.w, pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z);
     Vector3 pos = Vector3(pose.pose.position.x, pose.pose.position.y, pose.pose.position.z);
     NanoMapTime nm_time(pose.header.stamp.sec, pose.header.stamp.nsec);
@@ -306,17 +319,19 @@ class NanoMapNode {
 
     // todo: abstract this into SetLastPose
     Matrix4 transform = Eigen::Matrix4d::Identity();
-    transform.block<3,3>(0,0) = nm_pose.quaternion.toRotationMatrix();
-    transform.block<3,1>(0,3) = nm_pose.position;
+    transform.block<3, 3>(0, 0) = nm_pose.quaternion.toRotationMatrix();
+    transform.block<3, 1>(0, 3) = nm_pose.position;
     nanomap_visualizer.SetLastPose(transform);
 
     DrawNanoMapVisualizer();
   }
 
-  void SmoothedPosesCallback(nav_msgs::Path path) {
+  void SmoothedPosesCallback(nav_msgs::Path path)
+  {
     std::vector<NanoMapPose> smoothed_path_vector;
     size_t path_size = path.poses.size();
-    for (size_t i = 0; i < path_size; i++) {
+    for (size_t i = 0; i < path_size; i++)
+    {
       geometry_msgs::PoseStamped pose = path.poses.at(i);
       Eigen::Quaterniond quat(pose.pose.orientation.w, pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z);
       Vector3 pos = Vector3(pose.pose.position.x, pose.pose.position.y, pose.pose.position.z);
@@ -328,9 +343,10 @@ class NanoMapNode {
   }
 };
 
-int main(int argc, char** argv) {
-    ros::init(argc, argv, "nanomap_visualization_example");
-    NanoMapNode nanomap_node;
-    ros::spin();
-    return 0;
+int main(int argc, char **argv)
+{
+  ros::init(argc, argv, "nanomap_visualization_example");
+  NanoMapNode nanomap_node;
+  ros::spin();
+  return 0;
 }
