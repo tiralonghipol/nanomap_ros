@@ -3,7 +3,8 @@
 
     <node pkg="nanomap_ros" type="visualization_node" name="visualization_node" output="screen">
         <remap from="points" to="$(arg robot_name)/rgbd/camera_depth/depth/points" />
-        <remap from="poseStamped" to="$(arg robot_name)/delta/odometry_sensor1/position" />
+        <!-- <remap from="poseStamped" to="$(arg robot_name)/odometry_sensor1/odometry" /> -->
+        <remap from="odometry" to="$(arg robot_name)/odometry_sensor1/odometry" />
     </node>
 
 </launch>

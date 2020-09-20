@@ -6,11 +6,14 @@
 #include <tf2_ros/transform_listener.h>
 #include <nav_msgs/Path.h>
 #include <nav_msgs/Odometry.h>
+#include <geometry_msgs/Pose.h>
 
 #include "nanomap.h"
 #include "nanomap_visualizer.h"
 
 #include "stopwatch.h"
+
+using namespace std;
 
 Stopwatch global_time;
 
@@ -32,11 +35,12 @@ visualization_msgs::Marker getQueryPtMarker(int status, int id, Vector3 point_po
   marker1.pose.orientation.y = 0.0;
   marker1.pose.orientation.z = 0.0;
   marker1.pose.orientation.w = 1.0;
-  marker1.scale.x = 1.3;
-  marker1.scale.y = 1.3;
-  marker1.scale.z = 1.3;
-  if (status == 6)
+  marker1.scale.x = 1.0;
+  marker1.scale.y = 1.0;
+  marker1.scale.z = 1.0;
+  if (status == 6) // free space
   {
+    cout << "Free Space!" << endl;
     marker1.color.a = 1.0; // Don't forget to set the alpha!
     marker1.color.r = 0.0;
     marker1.color.g = 1.0;
@@ -61,7 +65,9 @@ visualization_msgs::Marker getQueryPtMarker(int status, int id, Vector3 point_po
   //   marker1.color.b = 0.0;
   // }
   else
-  {                        // cyan
+  {
+    // cout << "Occupied Space!" << endl;
+    // cyan
     marker1.color.a = 1.0; // Don't forget to set the alpha!
     marker1.color.r = 1.0;
     marker1.color.g = 0.0;
@@ -92,13 +98,15 @@ public:
 
     pcl_sub = nh.subscribe("points", 100, &NanoMapNode::PointCloudCallback, this);
     pose_updates_sub = nh.subscribe("path", 100, &NanoMapNode::SmoothedPosesCallback, this);
-    pose_sub = nh.subscribe("poseStamped", 100, &NanoMapNode::PoseCallback, this);
+    // pose_sub = nh.subscribe("poseStamped", 100, &NanoMapNode::PoseCallback, this);
+    odom_sub = nh.subscribe("odometry", 100, &NanoMapNode::OdometryCallback, this);
   };
 
   ros::NodeHandle nh;
   ros::Subscriber pcl_sub;
   ros::Subscriber pose_updates_sub;
-  ros::Subscriber pose_sub;
+  // ros::Subscriber pose_sub;
+  ros::Subscriber odom_sub;
   NanoMap nanomap;
   NanoMapVisualizer nanomap_visualizer;
   ros::Publisher query_points_pub = nh.advertise<visualization_msgs::MarkerArray>("query_points", 0);
@@ -207,7 +215,7 @@ public:
         //     break;
         // }
         args.query_point_current_body_frame = Vector3(x, m * x, 0.0);
-        reply = nanomap.KnnQuery(args);
+        reply = nanomap.KnnQuery(args); // pass a point to query
         // std::cout << "Query point: "
         //           << args.query_point_current_body_frame(0) << " " << args.query_point_current_body_frame(1) << " " << args.query_point_current_body_frame(2) << std::endl;
         // std::cout << "FOV status: " << (int)(reply.fov_status) << std::endl;
@@ -249,13 +257,13 @@ public:
     // std::cout << "Query point: "
     // << args.query_point_current_body_frame(0) << " " << args.query_point_current_body_frame(1) << " " << args.query_point_current_body_frame(2) << std::endl;
     // std::cout << "FOV status: " << (int)(reply.fov_status) << std::endl;
-    for (Vector3 v : reply.closest_points_in_frame_id)
-    {
-      // std::cout << v(0) << " " << v(1) << " " << v(2) << std::endl;
-      // std::cout << "Closest distance: " << (args.query_point_current_body_frame - v).norm() << std::endl;
-    }
-    visualization_msgs::Marker mp1 = getQueryPtMarker((int)(reply.fov_status), 1, args.query_point_current_body_frame);
-    query_points.markers.push_back(mp1);
+    // for (Vector3 v : reply.closest_points_in_frame_id)
+    // {
+    //   // std::cout << v(0) << " " << v(1) << " " << v(2) << std::endl;
+    //   // std::cout << "Closest distance: " << (args.query_point_current_body_frame - v).norm() << std::endl;
+    // }
+    // visualization_msgs::Marker mp1 = getQueryPtMarker((int)(reply.fov_status), 1, args.query_point_current_body_frame);
+    // query_points.markers.push_back(mp1);
 
     // args.query_point_current_body_frame = Vector3(-15.0, 1.0, 1.0);
     // reply = nanomap.KnnQuery(args);
@@ -307,15 +315,23 @@ public:
     nanomap_visualizer.DrawFrustums(edges);
   }
 
-  void PoseCallback(geometry_msgs::PoseStamped const &pose)
+  // void PoseCallback(geometry_msgs::PoseStamped const &pose)
+  void OdometryCallback(nav_msgs::Odometry const &odom)
   {
-    Eigen::Quaterniond quat(pose.pose.orientation.w, pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z);
-    Vector3 pos = Vector3(pose.pose.position.x, pose.pose.position.y, pose.pose.position.z);
-    NanoMapTime nm_time(pose.header.stamp.sec, pose.header.stamp.nsec);
+    geometry_msgs::Pose pose = odom.pose.pose;
+
+    // cout << "Pose: " << pose;
+    Eigen::Quaterniond quat(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
+    Vector3 pos = Vector3(pose.position.x, pose.position.y, pose.position.z);
+    // Eigen::Quaterniond quat(pose.pose.orientation.w, pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z);
+    // Vector3 pos = Vector3(pose.pose.position.x, pose.pose.position.y, pose.pose.position.z);
+    // NanoMapTime nm_time(pose.header.stamp.sec, pose.header.stamp.nsec);
+    NanoMapTime nm_time(odom.header.stamp.sec, odom.header.stamp.nsec);
     NanoMapPose nm_pose(pos, quat, nm_time);
     nanomap.AddPose(nm_pose);
 
-    curr_pose = pose.pose;
+    // curr_pose = pose.pose;
+    curr_pose = pose;
 
     // todo: abstract this into SetLastPose
     Matrix4 transform = Eigen::Matrix4d::Identity();
